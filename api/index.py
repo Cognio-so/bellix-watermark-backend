@@ -10,3 +10,4 @@ from app import app
 
 # Export handler for Vercel Serverless
 handler = app
+
