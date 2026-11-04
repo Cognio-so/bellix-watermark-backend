@@ -61,10 +61,12 @@ logger = logging.getLogger("watermark-app")
 # Application configuration
 # ---------------------------------------------------------------------------
 # Maximum upload size in bytes (default: 100 MB)
-MAX_UPLOAD_SIZE = int(os.environ.get("MAX_UPLOAD_SIZE_MB", 100)) * 1024 * 1024
+IS_VERCEL = bool(os.environ.get("VERCEL"))
+BASE_DIR = Path(__file__).resolve().parent
+WORK_DIR = Path("/tmp") if IS_VERCEL else BASE_DIR
 
-# Base directory for all uploaded/processed files
-UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "./uploads"))
+MAX_UPLOAD_SIZE = int(os.environ.get("MAX_UPLOAD_SIZE_MB", 100)) * 1024 * 1024
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", str(WORK_DIR / "uploads")))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Allow-list of accepted video file extensions
@@ -137,6 +139,104 @@ def _validate_video_extension(filename: str) -> str:
 # =============================================================================
 # API Endpoints
 # =============================================================================
+
+
+
+# ---------------------------------------------------------------------------
+# Health & Corner Inpainting Endpoints
+# ---------------------------------------------------------------------------
+@app.get("/health")
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok", "version": "2.0", "platform": "vercel" if IS_VERCEL else "local"}
+
+
+@app.post("/api/remove")
+async def api_remove_corner(
+    file: UploadFile = File(None),
+    image: UploadFile = File(None),
+    offset_pct: float = Form(0.156),
+    box_pct: float = Form(0.10),
+    method: str = Form("ns"),
+    inpaint_mode: str = Form(None),
+):
+    upload = file or image
+    if not upload:
+        raise HTTPException(status_code=400, detail="No file or image uploaded")
+    data = await upload.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 20MB)")
+
+    use_method = inpaint_mode or method or "ns"
+    from gemini_corner_inpainter import remove_gemini_corner_sparkle
+    from fastapi.responses import Response
+
+    try:
+        cleaned_np, box = remove_gemini_corner_sparkle(
+            image_input=data,
+            offset_pct=offset_pct,
+            box_pct=box_pct,
+            inpaint_mode=use_method,
+        )
+        success, buf = cv2.imencode(".png", cleaned_np)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to encode image")
+
+        bx, by, bw, bh = box
+        return Response(
+            content=buf.tobytes(),
+            media_type="image/png",
+            headers={
+                "X-Box": f"{bx},{by},{bw},{bh}",
+                "Access-Control-Expose-Headers": "X-Box",
+            }
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Inpainting failed: {str(e)}")
+
+
+@app.post("/api/remove/batch")
+async def api_remove_batch(
+    files: list[UploadFile] = File(...),
+    method: str = Form("ns"),
+):
+    import io, zipfile
+    from gemini_corner_inpainter import remove_gemini_corner_sparkle
+    from fastapi.responses import Response
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for idx, f in enumerate(files):
+            data = await f.read()
+            if not data or len(data) > 15 * 1024 * 1024:
+                continue
+            try:
+                cleaned_np, _ = remove_gemini_corner_sparkle(
+                    image_input=data,
+                    inpaint_mode=method
+                )
+                _, buf = cv2.imencode(".png", cleaned_np)
+                base_name = Path(f.filename or f"image_{idx}").stem
+                zf.writestr(f"{base_name}-cleaned.png", buf.tobytes())
+            except Exception:
+                continue
+
+    zip_buffer.seek(0)
+    return Response(
+        content=zip_buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="gemini_sparkle_cleaned_batch.zip"'}
+    )
+
+
+try:
+    from starlette.middleware.wsgi import WSGIMiddleware
+    from app import app as flask_app
+    app.mount("/api/image", WSGIMiddleware(flask_app))
+except Exception as e:
+    logger.warning("Could not mount Flask WSGI middleware: %s", e)
 
 
 @app.get("/")
