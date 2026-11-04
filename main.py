@@ -152,6 +152,8 @@ async def health_check():
 
 
 @app.post("/api/remove")
+@app.post("/api/gemini-image/clean")
+@app.post("/api/v1/gemini-image/clean")
 async def api_remove_corner(
     file: UploadFile = File(None),
     image: UploadFile = File(None),
