@@ -1,0 +1,184 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<<
+/Producer (pypdf)
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Count 2
+/Kids [ 4 0 R 9 0 R ]
+>>
+endobj
+3 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+4 0 obj
+<<
+/Contents 5 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/ExtGState <<
+/gRLs0 <<
+/ca 0.2
+>>
+>>
+/Font 6 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+5 0 obj
+<<
+/Length 315
+>>
+stream
+1 0 0 1 0 0 cm
+BT
+/F1 12 Tf
+14.4 TL
+ET
+BT
+/F1 12 Tf
+14.4 TL
+ET
+BT
+1 0 0 1 50 750 Tm
+(Invoice line 1\072 pay \044123\05645\056 Original text remains\056) Tj
+T*
+ET
+BT
+/F2 32 Tf
+38.4 TL
+ET
+BT
+1 0 0 1 50 690 Tm
+(CONFIDENTIAL) Tj
+T*
+ET
+q
+/gRLs0 gs
+0.819152 0.573576 -0.573576 0.819152 280 400 cm
+BT
+/F2 60 Tf
+72 TL
+ET
+Q
+
+endstream
+endobj
+6 0 obj
+<<
+/F1 7 0 R
+/F2 8 0 R
+>>
+endobj
+7 0 obj
+<<
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+/Name /F1
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+8 0 obj
+<<
+/BaseFont /Helvetica-Bold
+/Encoding /WinAnsiEncoding
+/Name /F2
+/Subtype /Type1
+/Type /Font
+>>
+endobj
+9 0 obj
+<<
+/Contents 10 0 R
+/MediaBox [ 0 0 595.2756 841.8898 ]
+/Resources <<
+/ExtGState <<
+/gRLs0 <<
+/ca 0.2
+>>
+>>
+/Font 6 0 R
+/ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>>
+/Rotate 0
+/Trans <<
+>>
+/Type /Page
+/Parent 2 0 R
+>>
+endobj
+10 0 obj
+<<
+/Length 315
+>>
+stream
+1 0 0 1 0 0 cm
+BT
+/F1 12 Tf
+14.4 TL
+ET
+BT
+/F1 12 Tf
+14.4 TL
+ET
+BT
+1 0 0 1 50 750 Tm
+(Invoice line 2\072 pay \044123\05645\056 Original text remains\056) Tj
+T*
+ET
+BT
+/F2 32 Tf
+38.4 TL
+ET
+BT
+1 0 0 1 50 690 Tm
+(CONFIDENTIAL) Tj
+T*
+ET
+q
+/gRLs0 gs
+0.819152 0.573576 -0.573576 0.819152 280 400 cm
+BT
+/F2 60 Tf
+72 TL
+ET
+Q
+
+endstream
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000015 00000 n 
+0000000054 00000 n 
+0000000119 00000 n 
+0000000168 00000 n 
+0000000405 00000 n 
+0000000771 00000 n 
+0000000812 00000 n 
+0000000919 00000 n 
+0000001031 00000 n 
+0000001269 00000 n 
+trailer
+<<
+/Size 11
+/Root 3 0 R
+/Info 1 0 R
+>>
+startxref
+1636
+%%EOF
