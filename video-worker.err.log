@@ -1,0 +1,74 @@
+INFO:     Started server process [15296]
+INFO:     Waiting for application startup.
+2026-11-19 11:11:30,730 [INFO] watermark-backend: Initializing Bellix Video Watermark Remover Backend...
+2026-11-19 11:11:30,779 [INFO] watermark-backend: FFmpeg / FFprobe availability: True
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5000 (Press CTRL+C to quit)
+2026-11-19 11:12:11,967 [INFO] watermark-backend: Accepted video process job 46787313-ad48-47c4-b769-3b060142cdf9 (duration: 10.0s, 1280x720)
+2026-11-19 11:12:11,982 [INFO] watermark-backend: [Job 46787313-ad48-47c4-b769-3b060142cdf9] Acquired semaphore slot. Detecting and removing static logo.
+2026-11-19 11:12:14,844 [ERROR] watermark-backend: [Job 46787313-ad48-47c4-b769-3b060142cdf9] Video watermark removal failed.
+Traceback (most recent call last):
+  File "D:\logo-ai-remover-main\watermark-backend\main.py", line 470, in _process_video_worker
+    await asyncio.to_thread(
+  File "C:\Users\PC\AppData\Local\Programs\Python\Python311\Lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\PC\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\logo-ai-remover-main\watermark-backend\processor.py", line 306, in remove_watermark
+    raise ValueError("No fixed Gemini sparkle was detected. Try Manual position over the visible sparkle.")
+ValueError: No fixed Gemini sparkle was detected. Try Manual position over the visible sparkle.
+2026-11-19 11:13:06,142 [INFO] watermark-backend: Accepted video process job 001f6641-4538-459b-afd2-6477245333d2 (duration: 10.0s, 1280x720)
+2026-11-19 11:13:06,146 [INFO] watermark-backend: [Job 001f6641-4538-459b-afd2-6477245333d2] Acquired semaphore slot. Detecting and removing static logo.
+2026-11-19 11:13:09,004 [ERROR] watermark-backend: [Job 001f6641-4538-459b-afd2-6477245333d2] Video watermark removal failed.
+Traceback (most recent call last):
+  File "D:\logo-ai-remover-main\watermark-backend\main.py", line 470, in _process_video_worker
+    await asyncio.to_thread(
+  File "C:\Users\PC\AppData\Local\Programs\Python\Python311\Lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\PC\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\logo-ai-remover-main\watermark-backend\processor.py", line 306, in remove_watermark
+    raise ValueError("No fixed Gemini sparkle was detected. Try Manual position over the visible sparkle.")
+ValueError: No fixed Gemini sparkle was detected. Try Manual position over the visible sparkle.
+2026-11-19 11:15:37,303 [INFO] watermark-backend: Accepted video process job 1af3d3fb-c1fa-4b64-9b26-60951efb2ef7 (duration: 1.0s, 240x426)
+2026-11-19 11:15:37,311 [INFO] watermark-backend: [Job 1af3d3fb-c1fa-4b64-9b26-60951efb2ef7] Acquired semaphore slot. Detecting and removing static logo.
+2026-11-19 11:15:37,804 [ERROR] watermark-backend: [Job 1af3d3fb-c1fa-4b64-9b26-60951efb2ef7] Video watermark removal failed.
+Traceback (most recent call last):
+  File "D:\logo-ai-remover-main\watermark-backend\main.py", line 470, in _process_video_worker
+    await asyncio.to_thread(
+  File "C:\Users\PC\AppData\Local\Programs\Python\Python311\Lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\PC\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\logo-ai-remover-main\watermark-backend\processor.py", line 306, in remove_watermark
+    raise ValueError("No fixed Gemini sparkle was detected. Try Manual position over the visible sparkle.")
+ValueError: No fixed Gemini sparkle was detected. Try Manual position over the visible sparkle.
+2026-11-19 11:16:52,286 [INFO] watermark-backend: Accepted video process job 20947483-d9d2-4b23-ad73-5d4e309c8423 (duration: 2.0s, 1280x720)
+2026-11-19 11:16:52,297 [INFO] watermark-backend: [Job 20947483-d9d2-4b23-ad73-5d4e309c8423] Acquired semaphore slot. Detecting and removing static logo.
+2026-11-19 11:16:53,072 [INFO] watermark-backend: [Job 20947483-d9d2-4b23-ad73-5d4e309c8423] Clean video generated successfully.
+2026-11-19 11:27:30,868 [INFO] watermark-backend: 15-minute cleanup removed job folder: 46787313-ad48-47c4-b769-3b060142cdf9
+2026-11-19 11:28:03,492 [INFO] watermark-backend: Accepted video process job 5d257ac7-63ac-4963-be1e-d335703efc8d (duration: 10.0s, 1280x720)
+2026-11-19 11:28:03,494 [INFO] watermark-backend: [Job 5d257ac7-63ac-4963-be1e-d335703efc8d] Acquired semaphore slot. Detecting and removing static logo.
+2026-11-19 11:28:08,472 [INFO] watermark-backend: [Job 5d257ac7-63ac-4963-be1e-d335703efc8d] Clean video generated successfully.
+2026-11-19 11:28:30,878 [INFO] watermark-backend: 15-minute cleanup removed job folder: 001f6641-4538-459b-afd2-6477245333d2
+2026-11-19 11:31:30,871 [INFO] watermark-backend: 15-minute cleanup removed job folder: 1af3d3fb-c1fa-4b64-9b26-60951efb2ef7
+2026-11-19 11:32:30,877 [INFO] watermark-backend: 15-minute cleanup removed job folder: 20947483-d9d2-4b23-ad73-5d4e309c8423
+2026-11-19 11:43:31,006 [INFO] watermark-backend: 15-minute cleanup removed job folder: 5d257ac7-63ac-4963-be1e-d335703efc8d
+2026-11-19 12:01:58,647 [INFO] watermark-backend: Accepted video process job 3af3befb-ac0f-4513-8658-10ab9f4901ea (duration: 10.0s, 1280x720)
+2026-11-19 12:01:58,651 [INFO] watermark-backend: [Job 3af3befb-ac0f-4513-8658-10ab9f4901ea] Acquired semaphore slot. Detecting and removing static logo.
+2026-11-19 12:02:04,537 [INFO] watermark-backend: [Job 3af3befb-ac0f-4513-8658-10ab9f4901ea] Clean video generated successfully.
+2026-11-19 12:05:16,039 [INFO] watermark-backend: Accepted video process job fc9a745c-ddf7-4328-b43c-d0eb62af3b9b (duration: 10.0s, 1280x720)
+2026-11-19 12:05:16,041 [INFO] watermark-backend: [Job fc9a745c-ddf7-4328-b43c-d0eb62af3b9b] Acquired semaphore slot. Detecting and removing static logo.
+2026-11-19 12:05:22,203 [INFO] watermark-backend: [Job fc9a745c-ddf7-4328-b43c-d0eb62af3b9b] Clean video generated successfully.
+2026-11-19 12:06:27,473 [INFO] watermark-backend: Accepted video process job 20f21050-b5cc-42ba-91dc-aa3152385542 (duration: 10.0s, 1280x720)
+2026-11-19 12:06:27,475 [INFO] watermark-backend: [Job 20f21050-b5cc-42ba-91dc-aa3152385542] Acquired semaphore slot. Detecting and removing static logo.
+2026-11-19 12:06:33,853 [INFO] watermark-backend: [Job 20f21050-b5cc-42ba-91dc-aa3152385542] Clean video generated successfully.
+2026-11-19 12:06:45,108 [INFO] watermark-backend: Accepted video process job ccf2fe18-2896-491f-97ba-082a93932c13 (duration: 10.0s, 1280x720)
+2026-11-19 12:06:45,109 [INFO] watermark-backend: [Job ccf2fe18-2896-491f-97ba-082a93932c13] Acquired semaphore slot. Detecting and removing static logo.
+2026-11-19 12:06:51,022 [INFO] watermark-backend: [Job ccf2fe18-2896-491f-97ba-082a93932c13] Clean video generated successfully.
