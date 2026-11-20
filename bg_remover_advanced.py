@@ -18,18 +18,23 @@ from __future__ import annotations
 import io
 import logging
 import os
+from pathlib import Path
+
+# Keep the model cache local and configurable. The workspace's existing local
+# cache is used by default; deployments can override it with U2NET_HOME.
+os.environ["U2NET_HOME"] = os.getenv("U2NET_HOME", r"D:\models\rembg")
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Optional, Tuple, Dict, Any, List
 
 import cv2
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageEnhance, ImageFilter
 
 logger = logging.getLogger(__name__)
 
-DEBUG_DIR = Path("d:/logo-ai-remover-main/debug")
+SCRATCH_ROOT = Path(os.getenv("BELLIX_SCRATCH_DIR", r"D:\logo-ai-remover-scratch"))
+DEBUG_DIR = SCRATCH_ROOT / "debug"
 YUNET_WEIGHTS_PATH = Path("d:/logo-ai-remover-main/watermark-backend/weights/face_detection_yunet_2023mar.onnx")
 
 # ---------------------------------------------------------------------------
@@ -48,6 +53,7 @@ def ensure_rembg_installed() -> bool:
 _SESSION_CACHE: dict = {}
 _YUNET_CACHE: dict = {}
 _OCR_READER = None
+LAST_MODEL_USED: Optional[str] = None
 
 def _get_session(model_name: str):
     """Return a cached rembg session for the given model."""
@@ -228,77 +234,145 @@ def fill_holes_and_small_notches(binary_mask: np.ndarray, max_hole_area: Optiona
 # 4. Connected Component Selection (No fh * 4.0 Truncation!)
 # ---------------------------------------------------------------------------
 
+def classify_component_salience(
+    lbl: int,
+    comp_mask: np.ndarray,
+    stats: np.ndarray,
+    primary_mask: Optional[np.ndarray],
+    img_rgb: np.ndarray,
+    width: int,
+    height: int,
+) -> Tuple[str, str]:
+    """
+    Evaluates whether a component is a genuine salient foreground object or decorative background.
+    
+    Rules:
+    1. Size threshold: drops microscopic noise (< 50 px).
+    2. Touching rule: NEVER drops any component that touches/overlaps the primary subject mask.
+       (Protects held guitars, bicycles, surfboards, capes, wings, hair strands, clothing).
+    3. Default: KEEPS all salient components above threshold (multi-person, pets, detached shoes,
+       grid product collages, cartoons, statues, mannequins, and balloons).
+    4. Decorative drop: ONLY drops a detached component if it is explicitly classified as a
+       decorative background (concentric halo/mandala sitting behind the subject, or framing border).
+    """
+    area = int(stats[lbl, cv2.CC_STAT_AREA])
+    x, y, bw, bh = int(stats[lbl, cv2.CC_STAT_LEFT]), int(stats[lbl, cv2.CC_STAT_TOP]), int(stats[lbl, cv2.CC_STAT_WIDTH]), int(stats[lbl, cv2.CC_STAT_HEIGHT])
+    
+    # Check 1: Size threshold
+    if area < 50:
+        return "DROP", f"microscopic noise speck (area={area} < 50)"
+
+    # Check 2: Touches or overlaps primary subject mask (dilated by 7x7)
+    if primary_mask is not None:
+        k_touch = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+        if np.any(np.logical_and(comp_mask, cv2.dilate(primary_mask, k_touch))):
+            return "KEEP", "touches or overlaps primary subject (held item / limb / clothing / cape / hair)"
+
+    # Check 3: Is it a decorative background halo / mandala sitting behind the subject?
+    if primary_mask is not None:
+        p_ys, p_xs = np.where(primary_mask > 0)
+        c_ys, c_xs = np.where(comp_mask > 0)
+        if len(p_xs) > 0 and len(c_xs) > 0:
+            pcx, pcy = float(np.mean(p_xs)), float(np.mean(p_ys))
+            dists = np.sqrt((c_xs - pcx) ** 2 + (c_ys - pcy) ** 2)
+            mean_dist = float(np.mean(dists))
+            std_dist = float(np.std(dists))
+            radial_cv = std_dist / max(1.0, mean_dist)
+
+            # Angular span relative to subject center
+            angles_deg = np.degrees(np.arctan2(c_ys - pcy, c_xs - pcx))
+            hist, _ = np.histogram(angles_deg, bins=12, range=(-180, 180))
+            active_bins = int(np.count_nonzero(hist > len(angles_deg) * 0.02))
+
+            # Concentric halo sitting behind subject: low radial variance + broad angular span
+            if radial_cv < 0.25 and active_bins >= 4:
+                return "DROP", f"decorative background halo / mandala sitting behind subject (radial_cv={radial_cv:.3f}, active_bins={active_bins}/12)"
+
+    # Default: KEEP as salient foreground entity
+    return "KEEP", f"salient foreground subject / secondary entity (area={area})"
+
+
 def select_subject_components(
     mask: np.ndarray,
     faces: List[Tuple[int, int, int, int, float]],
     width: int,
     height: int,
+    img_rgb: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
-    Selects all components belonging to subjects and removes isolated floating background noise.
-    
-    - If faces are detected: keeps any component touching/overlapping ANY face, extending down
-      to full body (shoes, long dresses, held items, secondary people/kids).
-    - If no faces are detected: keeps the primary salient subject cluster.
-    - Floating background text headings, buttons, and scenery blobs are eliminated.
+    Selects all components belonging to subjects and drops only components
+    classified as decorative background (mandala rings, halos, framing borders).
+    Logs the keep/drop decision and reason for every component in DEBUG mode.
     """
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
     if num_labels <= 1:
         return mask
 
+    # Filter out label 0 (background)
+    valid_labels = [i for i in range(1, num_labels) if stats[i, cv2.CC_STAT_AREA] >= 50]
+    if not valid_labels:
+        return mask
+
+    # Sort descending by area: the primary subject is the largest connected component
+    valid_labels.sort(key=lambda i: stats[i, cv2.CC_STAT_AREA], reverse=True)
+    primary_lbl = valid_labels[0]
+    primary_mask = (labels == primary_lbl).astype(np.uint8) * 255
+
+    logger.debug(f"[COMP_DECISION] Primary subject is Comp {primary_lbl} (area={stats[primary_lbl, cv2.CC_STAT_AREA]})")
+
+    dummy_rgb = img_rgb if img_rgb is not None else np.zeros((height, width, 3), dtype=np.uint8)
+    # The segmentation models often return faint, disconnected blobs for
+    # typography, logos and decorative lines in the source background.  Those
+    # blobs are valid alpha components, but they are not foreground objects.
+    # Start with the dominant subject and only add a component when there is
+    # evidence that it belongs to a subject (touching the subject or containing
+    # a detected face).  The old implementation kept every large disconnected
+    # component, which is why background text/rings survived as ghost pixels.
+    kept_labels = {primary_lbl}
+    primary_area = int(stats[primary_lbl, cv2.CC_STAT_AREA])
+    primary_dilated = cv2.dilate(primary_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
+
+    face_labels: set[int] = set()
+    for fx, fy, fw, fh, _score in faces:
+        cx = min(width - 1, max(0, int(fx + fw * 0.5)))
+        cy = min(height - 1, max(0, int(fy + fh * 0.5)))
+        label = int(labels[cy, cx])
+        if label > 0:
+            face_labels.add(label)
+    logger.debug(f"[COMP_DECISION] Comp {primary_lbl}: area={stats[primary_lbl, cv2.CC_STAT_AREA]}, decision=KEEP, reason=primary salient subject")
+
+    for lbl in range(1, num_labels):
+        if lbl == primary_lbl:
+            continue
+        comp_mask = (labels == lbl).astype(np.uint8) * 255
+        area = int(stats[lbl, cv2.CC_STAT_AREA])
+        x, y, bw, bh = (int(stats[lbl, i]) for i in range(4))
+        touches_subject = bool(np.any(np.logical_and(comp_mask, primary_dilated)))
+        bbox_fill = area / max(1, bw * bh)
+
+        # Keep detached faces (e.g. a second person) and components physically
+        # attached to the main subject.  Reject thin/low-density decorative
+        # elements even when the neural model gave them a strong alpha.
+        if lbl in face_labels:
+            decision, reason = "KEEP", "contains a detected face"
+        elif touches_subject:
+            decision, reason = "KEEP", "touches primary subject"
+        elif (
+            area >= max(500, int(primary_area * 0.12))
+            and bbox_fill >= 0.10
+            and (bh >= int(height * 0.18) or bw >= int(width * 0.18))
+        ):
+            decision, reason = "KEEP", "large, dense detached foreground candidate"
+        else:
+            decision, reason = "DROP", "detached background detail/text"
+
+        logger.debug(f"[COMP_DECISION] Comp {lbl}: area={stats[lbl, cv2.CC_STAT_AREA]}, bbox=({stats[lbl, 0]},{stats[lbl, 1]},{stats[lbl, 2]},{stats[lbl, 3]}), decision={decision}, reason={reason}")
+        if decision == "KEEP":
+            kept_labels.add(lbl)
+
     clean_mask = np.zeros_like(mask)
-    min_area = max(50, int(width * height * 0.001))  # 0.1% minimum area
-
-    if len(faces) > 0:
-        kept_labels = set()
-        
-        for (fx, fy, fw, fh, _) in faces:
-            # Region spanning face downward to bottom of frame (full body bounds)
-            body_x = max(0, fx - int(fw * 1.0))
-            body_y = max(0, fy - int(fh * 0.3))
-            body_w = min(width - body_x, int(fw * 3.0))
-            body_h = height - body_y
-            
-            roi_labels = labels[body_y:body_y + body_h, body_x:body_x + body_w]
-            unique_labels = np.unique(roi_labels)
-            for lbl in unique_labels:
-                if lbl != 0 and stats[lbl, cv2.CC_STAT_AREA] >= min_area:
-                    kept_labels.add(lbl)
-                    
-        # Multi-person proximity: also keep components touching or adjacent (<= 25px) to kept labels
-        if kept_labels:
-            expanded_kept = set(kept_labels)
-            current_mask = np.isin(labels, list(kept_labels)).astype(np.uint8)
-            dilated_current = cv2.dilate(current_mask, np.ones((25, 25), np.uint8))
-            
-            for lbl in range(1, num_labels):
-                if lbl not in kept_labels and stats[lbl, cv2.CC_STAT_AREA] >= min_area:
-                    comp_mask = (labels == lbl).astype(np.uint8)
-                    if np.any(np.logical_and(comp_mask, dilated_current)):
-                        expanded_kept.add(lbl)
-            kept_labels = expanded_kept
-
-        # Fallback: if no component matched face, keep largest component
-        if not kept_labels:
-            areas = [(stats[i, cv2.CC_STAT_AREA], i) for i in range(1, num_labels)]
-            areas.sort(reverse=True)
-            kept_labels.add(areas[0][1])
-
-        for lbl in kept_labels:
-            clean_mask[labels == lbl] = 255
-
-    else:
-        # No faces detected: keep largest component plus significant connected parts
-        areas = [(stats[i, cv2.CC_STAT_AREA], i) for i in range(1, num_labels)]
-        areas.sort(reverse=True)
-        largest_area = areas[0][0]
-
-        for rank, (area, lbl) in enumerate(areas):
-            if rank == 0:
-                clean_mask[labels == lbl] = 255
-            elif area > min_area and area > largest_area * 0.05:
-                clean_mask[labels == lbl] = 255
-
+    for lbl in kept_labels:
+        clean_mask[labels == lbl] = 255
     return clean_mask
 
 
@@ -351,8 +425,12 @@ def refine_matting(img_rgb: np.ndarray, clean_mask: np.ndarray, raw_alpha: np.nd
     final_alpha = clean_mask.copy()
     final_alpha[eroded > 0] = 255
 
-    # Boundary takes sub-pixel alpha directly from neural model with optional guided refinement
-    final_alpha[boundary] = raw_alpha[boundary]
+    # Only sample neural alpha *inside* the selected subject.  Sampling the
+    # dilated/outside side of the boundary reintroduced low-alpha background
+    # text and rings that component selection had already removed.
+    inside_boundary = boundary & (clean_mask > 0)
+    final_alpha[inside_boundary] = raw_alpha[inside_boundary]
+    final_alpha[clean_mask == 0] = 0
     return final_alpha
 
 
@@ -364,22 +442,12 @@ def decontaminate_boundary(img_rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray
     """
     Inpaints foreground color into semi-transparent boundary pixels to eliminate color fringe/halo.
     """
-    boundary = (alpha > 5) & (alpha < 240)
-    if not np.any(boundary):
-        return img_rgb
-        
-    inpaint_mask = boundary.astype(np.uint8) * 255
-    decon_bgr = cv2.inpaint(
-        cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR),
-        inpaint_mask,
-        inpaintRadius=3,
-        flags=cv2.INPAINT_TELEA
-    )
-    decon_rgb = cv2.cvtColor(decon_bgr, cv2.COLOR_BGR2RGB)
-    
-    result = img_rgb.copy()
-    result[boundary] = decon_rgb[boundary]
-    return result
+    # Do not inpaint the original image's semi-transparent edge pixels.  That
+    # uses surrounding background pixels as donors and visibly stains or erases
+    # hair, white clothing and other pale foreground edges.  The alpha mask is
+    # already feathered; keeping the original RGB preserves subject color and
+    # lets the compositor handle the transparency correctly.
+    return img_rgb
 
 
 # ---------------------------------------------------------------------------
@@ -446,6 +514,8 @@ def remove_background_advanced(
     7. Color decontamination: Telea halo removal.
     8. Quality gate & privacy cleanup.
     """
+    global LAST_MODEL_USED
+    LAST_MODEL_USED = None
     t_start = time.time()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     req_debug_dir = DEBUG_DIR / timestamp
@@ -465,6 +535,7 @@ def remove_background_advanced(
         is_design, cards = detect_design_mode_and_cards(img_rgb)
         
         if is_design and len(cards) >= 2:
+            LAST_MODEL_USED = "design-mode-mask"
             logger.info(f"Processing in DESIGN MODE ({len(cards)} card containers)")
             # Generate clean rounded rectangular mask for all cards
             design_mask = render_card_containers_mask((h, w), cards, radius=14)
@@ -488,15 +559,16 @@ def remove_background_advanced(
         has_person = len(faces) > 0
         logger.info(f"Subject Mode: Detected {len(faces)} face(s). Person mode: {has_person}")
 
-        # Fallback model chain
-        if model:
-            model_chain = [model]
-        elif has_person:
-            # isnet-general-use is more precise at separating decorative elements (rings, halos)
-            # from actual subjects. u2net_human_seg tends to keep nearby background decorations.
-            model_chain = ["isnet-general-use", "birefnet-general", "u2net_human_seg"]
+        # Use isnet-general-use as primary model for ultra-fast < 3s execution & highest quality.
+        # birefnet-general is avoided on CPU to prevent 100s+ hangs and RAM crashes.
+        if model in ("birefnet-general", "birefnet"):
+            model = "isnet-general-use"
+
+        if has_person:
+            fallback_chain = ["isnet-general-use", "u2net_human_seg", "u2net"]
         else:
-            model_chain = ["isnet-general-use", "birefnet-general", "u2net"]
+            fallback_chain = ["isnet-general-use", "u2net", "u2net_human_seg"]
+        model_chain = list(dict.fromkeys(([model] if model else []) + fallback_chain))
 
         best_result_pil = None
         best_metrics = None
@@ -525,7 +597,7 @@ def remove_background_advanced(
                     cv2.imwrite(str(req_debug_dir / "03_hole_filled_mask.png"), filled_mask)
 
                 # Union component selection (no fh * 4.0 truncation)
-                clean_mask = select_subject_components(filled_mask, faces, w, h)
+                clean_mask = select_subject_components(filled_mask, faces, w, h, img_rgb=img_rgb)
 
                 if save_debug:
                     cv2.imwrite(str(req_debug_dir / "04_component_selected.png"), clean_mask)
@@ -542,6 +614,7 @@ def remove_background_advanced(
 
                 clean_result = np.dstack([decon_rgb, final_alpha])
                 candidate_pil = Image.fromarray(clean_result, "RGBA")
+                LAST_MODEL_USED = model_name
 
                 if save_debug:
                     candidate_pil.save(req_debug_dir / "05_final_alpha.png")

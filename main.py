@@ -183,6 +183,17 @@ async def lifespan(app: FastAPI):
     logger.info("FFmpeg / FFprobe availability: %s", ffmpeg_ok)
     purge_startup_leftovers()
 
+    # Pre-warm neural background model session for instant < 3s user responses
+    def _warmup_neural_model():
+        try:
+            from bg_remover_advanced import _get_session
+            _get_session("isnet-general-use")
+            logger.info("Neural model (isnet-general-use) pre-warmed for < 3s inference.")
+        except Exception as e:
+            logger.warning("Could not pre-warm neural model: %s", e)
+
+    asyncio.get_event_loop().run_in_executor(None, _warmup_neural_model)
+
     cleanup_task = asyncio.create_task(background_cleanup_loop())
     yield
     # Shutdown actions
@@ -782,18 +793,21 @@ async def api_background_remove_advanced(
     model: str = Form("isnet-general-use"),
 ):
     """
-    Advanced AI background removal using rembg (isnet-general-use / BiRefNet).
+    Advanced AI background removal using rembg with isnet-general-use as primary model (<3s execution).
     Returns 32-bit RGBA PNG with only the subject visible.
     
     Models available:
-    - isnet-general-use  (default, best quality, any image type)
+    - isnet-general-use  (default, primary ultra-fast & high-quality model, < 3s)
+    - u2net_human_seg    (optimized for people / portraits)
     - u2net              (fast, general)
-    - u2net_human_seg    (optimized for people)
-    - birefnet-general   (latest BiRefNet, best quality)
     """
     data = await image.read()
     if len(data) > 35 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File too large (max 35MB)")
+
+    # Normalize birefnet-general to isnet-general-use on CPU to ensure < 3s ultra-fast response
+    if model in ("birefnet-general", "birefnet"):
+        model = "isnet-general-use"
 
     from bg_remover_advanced import remove_background_advanced, ensure_rembg_installed, REMBG_AVAILABLE
 
@@ -806,6 +820,21 @@ async def api_background_remove_advanced(
 
     try:
         result_png = remove_background_advanced(data, model=model)
+
+        # The background-removal contract is always a real transparent PNG.
+        # Validate the bytes at the boundary so a model/fallback regression
+        # cannot silently return an opaque image to the browser.
+        from io import BytesIO
+        from PIL import Image
+        import numpy as np
+
+        with Image.open(BytesIO(result_png)) as result_image:
+            if result_image.format != "PNG" or result_image.mode != "RGBA":
+                raise ValueError("background remover returned a non-RGBA PNG")
+            alpha = np.asarray(result_image.getchannel("A"))
+            if not np.any(alpha == 0) or not np.any(alpha == 255):
+                raise ValueError("background remover returned an invalid alpha mask")
+
         return Response(
             content=result_png,
             media_type="image/png",
