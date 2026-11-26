@@ -1,0 +1,112 @@
+{
+  "model_used": "isnet-general-use",
+  "fallback_used": false,
+  "quality_pass": false,
+  "mask_valid": true,
+  "warnings": [
+    "Visual quality is unverified; inspect edges and background before use."
+  ],
+  "metrics": {
+    "coverage_pct": 36.1,
+    "uncertain_pct": 12.93,
+    "holes_count": 0,
+    "has_text_outside": false,
+    "is_reliable": true,
+    "dimensions": [
+      63,
+      27
+    ],
+    "min": 0.0,
+    "max": 255.0,
+    "mean": 85.99823633156967,
+    "percentiles": {
+      "p0": 0.0,
+      "p1": 0.0,
+      "p5": 0.0,
+      "p50": 0.0,
+      "p95": 255.0,
+      "p99": 255.0,
+      "p100": 255.0
+    },
+    "foreground_pixel_percentage": 36.096413874191654,
+    "transparent_pixel_percentage": 62.96296296296296,
+    "soft_pixel_percentage": 12.933568489124045
+  },
+  "inference": {
+    "adapter": "float-mask-before-quantization",
+    "polarity": "white-foreground",
+    "output_kind": "probabilities",
+    "original_dimensions": [
+      63,
+      27
+    ],
+    "model_input": [
+      1024,
+      1024
+    ],
+    "raw_mask": {
+      "dimensions": [
+        2,
+        2
+      ],
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.5249999761581421,
+      "percentiles": {
+        "p0": 0.0,
+        "p1": 0.009000000357627868,
+        "p5": 0.04500000178813935,
+        "p50": 0.550000011920929,
+        "p95": 0.9700000017881393,
+        "p99": 0.9940000003576278,
+        "p100": 1.0
+      }
+    },
+    "normalized_mask": {
+      "dimensions": [
+        2,
+        2
+      ],
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.5249999761581421,
+      "percentiles": {
+        "p0": 0.0,
+        "p1": 0.009000000357627868,
+        "p5": 0.04500000178813935,
+        "p50": 0.550000011920929,
+        "p95": 0.9700000017881393,
+        "p99": 0.9940000003576278,
+        "p100": 1.0
+      }
+    },
+    "restored_mask": {
+      "dimensions": [
+        63,
+        27
+      ],
+      "min": 0.0,
+      "max": 255.0,
+      "mean": 133.84714873603764,
+      "percentiles": {
+        "p0": 0.0,
+        "p1": 0.0,
+        "p5": 0.0,
+        "p50": 134.0,
+        "p95": 255.0,
+        "p99": 255.0,
+        "p100": 255.0
+      }
+    },
+    "providers": [],
+    "raw_png_encoding": "uint16: probability [0,1]"
+  },
+  "image_type": "auto",
+  "operation": "neural-background-removal",
+  "has_gradient_note": false,
+  "text_mode": "auto",
+  "has_text": false,
+  "latency_seconds": 0.43,
+  "inference_errors": [],
+  "debug_dir": "D:\\logo-ai-remover-main\\watermark-backend\\.qa_tmp\\pytest-of-PC\\pytest-2\\test_pipeline_debug_artifacts_0\\20261126_102255_884340"
+}
